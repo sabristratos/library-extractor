@@ -406,6 +406,8 @@ Respond ONLY with valid JSON matching the schema. No markdown, no explanation.""
 
         user_content = "\n".join(context_parts)
 
+        self.llm.reset()
+
         try:
             output = self._generate_with_retry(
                 messages=[
@@ -700,8 +702,8 @@ Examples:
                         help=f'GGUF model path (default: {DEFAULT_MODEL})')
     parser.add_argument('--limit', type=int, default=0,
                         help='Limit number of books to classify (0=all)')
-    parser.add_argument('--batch-size', type=int, default=100,
-                        help='Save checkpoint every N books (default: 100)')
+    parser.add_argument('--batch-size', type=int, default=20,
+                        help='Save checkpoint every N books (default: 20)')
     parser.add_argument('--no-resume', action='store_true',
                         help='Start fresh, ignore existing classifications')
     parser.add_argument('--n-gpu-layers', type=int, default=-1,
