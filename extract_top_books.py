@@ -62,11 +62,15 @@ class WorkMetadata:
     title: Optional[str] = None
     subtitle: Optional[str] = None
     description: Optional[str] = None
+    first_sentence: Optional[str] = None
+    excerpts: Optional[str] = None
     first_publish_year: Optional[int] = None
     series_name: Optional[str] = None
     series_position: Optional[str] = None
     author_ids: List[str] = field(default_factory=list)
     subjects: List[str] = field(default_factory=list)
+    subject_places: List[str] = field(default_factory=list)
+    subject_times: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -412,6 +416,27 @@ def enrich_metadata(works_path: Path, top_work_ids: Set[str]) -> Dict[str, WorkM
                 if description:
                     work_meta.description = clean_description(description, 2500)
 
+                # First sentence (engagement hook)
+                first_sentence = data.get('first_sentence', '')
+                if first_sentence:
+                    work_meta.first_sentence = clean_description(first_sentence, 500)
+
+                # Excerpts (engagement hooks)
+                excerpts_raw = data.get('excerpts', [])
+                if excerpts_raw and isinstance(excerpts_raw, list):
+                    excerpts_list = []
+                    for exc in excerpts_raw[:3]:
+                        if isinstance(exc, dict):
+                            exc_text = exc.get('excerpt', '')
+                        else:
+                            exc_text = exc
+                        if exc_text:
+                            cleaned = clean_description(exc_text, 500)
+                            if cleaned:
+                                excerpts_list.append(cleaned)
+                    if excerpts_list:
+                        work_meta.excerpts = '|'.join(excerpts_list)
+
                 # First publish year
                 work_meta.first_publish_year = extract_first_publish_year(data)
 
@@ -460,6 +485,26 @@ def enrich_metadata(works_path: Path, top_work_ids: Set[str]) -> Dict[str, WorkM
 
                 work_meta.subjects = subjects
 
+                # Subject places (geo data for "Books set in...")
+                places_raw = data.get('subject_places', [])
+                places = []
+                for place in places_raw[:5]:
+                    if isinstance(place, str) and len(place) > 1 and len(place) < 100:
+                        place_clean = re.sub(r'\s+', ' ', place).strip()
+                        if place_clean:
+                            places.append(place_clean)
+                work_meta.subject_places = places
+
+                # Subject times (era data for "Books set in the...")
+                times_raw = data.get('subject_times', [])
+                times = []
+                for time_period in times_raw[:5]:
+                    if isinstance(time_period, str) and len(time_period) > 1 and len(time_period) < 100:
+                        time_clean = re.sub(r'\s+', ' ', time_period).strip()
+                        if time_clean:
+                            times.append(time_clean)
+                work_meta.subject_times = times
+
                 metadata[work_id] = work_meta
 
             except (json.JSONDecodeError, IndexError):
@@ -467,19 +512,27 @@ def enrich_metadata(works_path: Path, top_work_ids: Set[str]) -> Dict[str, WorkM
 
     # Stats
     with_desc = sum(1 for m in metadata.values() if m.description)
+    with_first_sentence = sum(1 for m in metadata.values() if m.first_sentence)
+    with_excerpts = sum(1 for m in metadata.values() if m.excerpts)
     with_year = sum(1 for m in metadata.values() if m.first_publish_year)
     with_series = sum(1 for m in metadata.values() if m.series_name)
     with_subtitle = sum(1 for m in metadata.values() if m.subtitle)
     with_authors = sum(1 for m in metadata.values() if m.author_ids)
     with_subjects = sum(1 for m in metadata.values() if m.subjects)
+    with_places = sum(1 for m in metadata.values() if m.subject_places)
+    with_times = sum(1 for m in metadata.values() if m.subject_times)
 
     print(f"\nWorks Found:       {found:,}/{len(top_work_ids):,} ({100*found/len(top_work_ids):.1f}%)")
     print(f"With Description:  {with_desc:,} ({100*with_desc/max(found,1):.1f}%)")
+    print(f"With First Sent:   {with_first_sentence:,} ({100*with_first_sentence/max(found,1):.1f}%)")
+    print(f"With Excerpts:     {with_excerpts:,} ({100*with_excerpts/max(found,1):.1f}%)")
     print(f"With Subtitle:     {with_subtitle:,} ({100*with_subtitle/max(found,1):.1f}%)")
     print(f"With Publish Year: {with_year:,} ({100*with_year/max(found,1):.1f}%)")
     print(f"With Series:       {with_series:,} ({100*with_series/max(found,1):.1f}%)")
     print(f"With Authors:      {with_authors:,} ({100*with_authors/max(found,1):.1f}%)")
     print(f"With Subjects:     {with_subjects:,} ({100*with_subjects/max(found,1):.1f}%)")
+    print(f"With Places:       {with_places:,} ({100*with_places/max(found,1):.1f}%)")
+    print(f"With Times:        {with_times:,} ({100*with_times/max(found,1):.1f}%)")
 
     # Collect all unique author IDs for name resolution
     all_author_ids: Set[str] = set()
@@ -860,7 +913,8 @@ def generate_output(top_works: List[Tuple[str, WorkStats]],
 
     columns = [
         'rank', 'work_id', 'title', 'subtitle', 'description',
-        'authors', 'author_ids', 'subjects',
+        'first_sentence', 'excerpts',
+        'authors', 'author_ids', 'subjects', 'subject_places', 'subject_times',
         'first_publish_year', 'series_name', 'series_position',
         'isbns', 'cover_ids',
         'rating_avg', 'rating_count',
@@ -899,6 +953,8 @@ def generate_output(top_works: List[Tuple[str, WorkStats]],
             author_ids_str = '|'.join(author_ids_list) if author_ids_list else ''
             authors_str = '|'.join(author_names_list) if author_names_list else ''
             subjects_str = '|'.join(work_meta.subjects) if work_meta.subjects else ''
+            places_str = '|'.join(work_meta.subject_places) if work_meta.subject_places else ''
+            times_str = '|'.join(work_meta.subject_times) if work_meta.subject_times else ''
 
             if not work_meta.title:
                 missing_titles += 1
@@ -920,9 +976,13 @@ def generate_output(top_works: List[Tuple[str, WorkStats]],
                 'title': work_meta.title or '',
                 'subtitle': work_meta.subtitle or '',
                 'description': work_meta.description or '',
+                'first_sentence': work_meta.first_sentence or '',
+                'excerpts': work_meta.excerpts or '',
                 'authors': authors_str,
                 'author_ids': author_ids_str,
                 'subjects': subjects_str,
+                'subject_places': places_str,
+                'subject_times': times_str,
                 'first_publish_year': work_meta.first_publish_year or '',
                 'series_name': work_meta.series_name or '',
                 'series_position': work_meta.series_position or '',

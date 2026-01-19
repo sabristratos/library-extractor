@@ -651,9 +651,9 @@ def process_works(input_path: Path, works_output: Path, authors_output: Path,
     valid_work_ids = set()
 
     works_columns = ['work_id', 'title', 'subtitle', 'first_publish_year', 'series_name',
-                     'cover_id', 'description', 'completeness_score']
+                     'cover_id', 'description', 'first_sentence', 'excerpts', 'completeness_score']
     authors_columns = ['work_id', 'author_id', 'ordinal']
-    tags_columns = ['work_id', 'tag']
+    tags_columns = ['work_id', 'tag', 'tag_type']
 
     with gzip.open(input_path, 'rt', encoding='utf-8', errors='replace') as infile, \
          open(works_output, 'w', newline='', encoding='utf-8-sig') as works_file, \
@@ -704,6 +704,20 @@ def process_works(input_path: Path, works_output: Path, authors_output: Path,
                 series_name = extract_series(data)
                 description = TypeGuards.extract_text(data.get('description'), max_length=2000)
 
+                first_sentence = TypeGuards.extract_text(data.get('first_sentence'), max_length=500)
+
+                excerpts_raw = data.get('excerpts', [])
+                excerpts_list = []
+                if isinstance(excerpts_raw, list):
+                    for exc in excerpts_raw[:3]:
+                        if isinstance(exc, dict):
+                            exc_text = TypeGuards.extract_text(exc.get('excerpt'), max_length=500)
+                        else:
+                            exc_text = TypeGuards.extract_text(exc, max_length=500)
+                        if exc_text:
+                            excerpts_list.append(exc_text)
+                excerpts = '|'.join(excerpts_list) if excerpts_list else None
+
                 first_publish_year = TypeGuards.extract_year(data.get('first_publish_date'))
 
                 covers = data.get('covers', [])
@@ -717,6 +731,8 @@ def process_works(input_path: Path, works_output: Path, authors_output: Path,
                     'series_name': series_name,
                     'cover_id': cover_id,
                     'description': description,
+                    'first_sentence': first_sentence,
+                    'excerpts': excerpts,
                     'completeness_score': completeness,
                 })
 
@@ -731,18 +747,27 @@ def process_works(input_path: Path, works_output: Path, authors_output: Path,
                         'ordinal': ordinal,
                     })
 
-                tags = set()
-                for subject_field in ['subjects', 'subject_places', 'subject_people', 'subject_times']:
-                    subject_list = TypeGuards.extract_string_list(data.get(subject_field), max_items=20)
+                tag_fields = {
+                    'subjects': 'subject',
+                    'subject_places': 'place',
+                    'subject_people': 'person',
+                    'subject_times': 'time',
+                }
+                tags_written = 0
+                seen_tags = set()
+                for field_name, tag_type in tag_fields.items():
+                    subject_list = TypeGuards.extract_string_list(data.get(field_name), max_items=20)
                     for subj in subject_list:
-                        if subj and len(subj) >= 2:
-                            tags.add(subj.lower())
-
-                for tag in list(tags)[:10]:
-                    tags_writer.writerow({
-                        'work_id': work_id,
-                        'tag': tag,
-                    })
+                        if subj and len(subj) >= 2 and tags_written < 15:
+                            tag_lower = subj.lower()
+                            if tag_lower not in seen_tags:
+                                seen_tags.add(tag_lower)
+                                tags_writer.writerow({
+                                    'work_id': work_id,
+                                    'tag': tag_lower,
+                                    'tag_type': tag_type,
+                                })
+                                tags_written += 1
 
             except Exception as e:
                 stats.errors += 1
