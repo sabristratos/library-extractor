@@ -46,6 +46,145 @@ except ImportError:
 # TAXONOMY - Strict Categories (The Model MUST pick from these)
 # =============================================================================
 
+# Reader-friendly genre/subgenre classifications (multi-select)
+GenreType = Literal[
+    # Fantasy Subgenres
+    "Epic Fantasy",           # Tolkien-style, world-spanning quests (LOTR, Wheel of Time)
+    "High Fantasy",           # Secondary world, magic systems (Sanderson, Hobb)
+    "Low Fantasy",            # Minimal magic, grounded (First Law, ASOIAF early)
+    "Urban Fantasy",          # Magic in modern cities (Dresden Files, Kate Daniels)
+    "Dark Fantasy",           # Fantasy with horror elements (Black Company, Malazan)
+    "Grimdark",               # Bleak, morally grey, violent (First Law, Prince of Thorns)
+    "Sword and Sorcery",      # Action-focused, personal stakes (Conan, Fafhrd)
+    "Romantic Fantasy",       # Romance central to fantasy plot (ACOTAR, From Blood and Ash)
+    "Romantasy",              # Heavy romance in fantasy setting (same as above, common term)
+    "Portal Fantasy",         # Characters transported to other worlds (Narnia, Wayward Children)
+    "Progression Fantasy",    # Power leveling, cultivation (Cradle, Mother of Learning)
+    "LitRPG",                 # Game mechanics explicit in story (Dungeon Crawler Carl)
+    "Cozy Fantasy",           # Low stakes, comforting (Legends & Lattes, House Witch)
+    "Fairy Tale Retelling",   # Classic tales reimagined (Spinning Silver, Uprooted)
+    "Mythic Fantasy",         # Based on real mythology (Circe, American Gods)
+    "Gaslamp Fantasy",        # Victorian-era fantasy (Soulless, Shades of Milk and Honey)
+
+    # Science Fiction Subgenres
+    "Space Opera",            # Grand scale space adventure (Expanse, Hyperion)
+    "Hard Science Fiction",   # Scientifically rigorous (The Martian, Seveneves)
+    "Soft Science Fiction",   # Focus on social/character (Left Hand of Darkness)
+    "Cyberpunk",              # High tech, low life (Neuromancer, Snow Crash)
+    "Military Sci-Fi",        # War and soldiers in space (Old Man's War, Starship Troopers)
+    "Post-Apocalyptic",       # After civilization falls (The Road, Station Eleven)
+    "Dystopian",              # Oppressive future societies (1984, Handmaid's Tale)
+    "Space Western",          # Western themes in space (Firefly novels, Mandalorian)
+    "First Contact",          # Alien encounters (Three-Body Problem, Arrival)
+    "Time Travel",            # Temporal mechanics central (11/22/63, Recursion)
+    "Biopunk",                # Biological technology (Oryx and Crake)
+    "Solarpunk",              # Optimistic eco-future
+    "Cli-Fi",                 # Climate fiction (Ministry for the Future)
+
+    # Mystery & Thriller Subgenres
+    "Cozy Mystery",           # Amateur sleuth, low violence (Agatha Raisin)
+    "Police Procedural",      # Law enforcement investigation (Bosch, Reacher)
+    "Noir",                   # Dark, cynical, morally ambiguous (Chandler, Hammett)
+    "Hardboiled",             # Tough detective, gritty (Philip Marlowe)
+    "Whodunit",               # Classic puzzle mystery (Agatha Christie)
+    "Legal Thriller",         # Courtroom drama (Grisham, Turow)
+    "Psychological Thriller", # Mind games, unreliable narrators (Gone Girl)
+    "Domestic Thriller",      # Danger within home/family (Behind Closed Doors)
+    "Spy Thriller",           # Espionage and intelligence (Le Carré, Flynn)
+    "Medical Thriller",       # Healthcare/disease plots (Robin Cook)
+    "Techno-Thriller",        # Technology-driven plots (Crichton, Clancy)
+
+    # Horror Subgenres
+    "Gothic Horror",          # Atmospheric, old estates (Mexican Gothic, Rebecca)
+    "Cosmic Horror",          # Lovecraftian, unknowable dread (Lovecraft, VanderMeer)
+    "Psychological Horror",   # Mind and sanity (Shirley Jackson, Paul Tremblay)
+    "Supernatural Horror",    # Ghosts, demons, entities (The Shining, Hell House)
+    "Body Horror",            # Physical transformation/mutation (Cronenberg-style)
+    "Folk Horror",            # Rural, pagan, traditions (The Wicker Man, Harvest Home)
+    "Slasher",                # Serial killer stalking victims
+    "Haunted House",          # Location-based horror (Hill House, Amityville)
+    "Southern Gothic",        # American South, decay, grotesque (O'Connor)
+
+    # Romance Subgenres
+    "Contemporary Romance",   # Modern day settings
+    "Historical Romance",     # Past eras (Regency, Victorian, etc.)
+    "Paranormal Romance",     # Supernatural love interests (vampires, shifters)
+    "Romantic Suspense",      # Romance + danger/mystery
+    "Romantic Comedy",        # Humorous romance (RomCom)
+    "Sports Romance",         # Athletes and sports settings
+    "Small Town Romance",     # Rural/small community settings
+    "Billionaire Romance",    # Wealthy love interests
+    "Mafia Romance",          # Organized crime settings (dark romance)
+    "Dark Romance",           # Darker themes, morally grey heroes
+    "Reverse Harem",          # One protagonist, multiple love interests
+    "MM Romance",             # Male/male romance
+    "FF Romance",             # Female/female romance
+    "Clean Romance",          # No explicit content
+    "Steamy Romance",         # Explicit content (spicy)
+
+    # Historical Fiction Subgenres
+    "Historical Fiction",     # General historical settings
+    "Alternate History",      # "What if" historical divergence
+    "Historical Mystery",     # Mystery in historical setting
+    "War Fiction",            # Focus on warfare and soldiers
+    "Biographical Fiction",   # Based on real historical figures
+
+    # Literary & Contemporary
+    "Literary Fiction",       # Character-driven, artistic prose
+    "Contemporary Fiction",   # Modern realistic fiction
+    "Magical Realism",        # Magic in realistic settings (García Márquez)
+    "Upmarket Fiction",       # Commercial with literary sensibility
+    "Book Club Fiction",      # Discussion-friendly contemporary
+    "Family Saga",            # Multi-generational stories
+    "Coming of Age",          # Growing up, self-discovery
+    "Women's Fiction",        # Female protagonist journeys
+    "LGBTQ+ Fiction",         # Queer protagonists/themes
+
+    # Adventure & Action
+    "Action Adventure",       # Fast-paced physical challenges
+    "Survival",               # Characters vs. nature/circumstances
+    "Heist",                  # Elaborate theft/con plots
+    "Treasure Hunt",          # Quest for valuable objects
+
+    # Non-Fiction Categories
+    "Memoir",                 # Personal life stories
+    "Biography",              # Life of another person
+    "Autobiography",          # Self-written life story
+    "Self-Help",              # Personal improvement
+    "Business",               # Career, entrepreneurship, leadership
+    "Popular Science",        # Science for general audience
+    "History",                # Non-fiction historical accounts
+    "True Crime",             # Real criminal cases
+    "Travel",                 # Travel writing and guides
+    "Philosophy",             # Philosophical works
+    "Religion & Spirituality",# Faith and spiritual topics
+    "Health & Wellness",      # Physical and mental health
+    "Cooking & Food",         # Cookbooks, food writing
+    "Parenting",              # Child-rearing guides
+    "Essays",                 # Collection of essays
+    "Journalism",             # Investigative, long-form reporting
+    "Politics",               # Political analysis and commentary
+    "Economics",              # Economic topics for general readers
+    "Psychology",             # Mental processes and behavior
+    "Nature Writing",         # Environment, wildlife, outdoors
+
+    # Age Categories (can combine with genres)
+    "Middle Grade",           # Ages 8-12
+    "Young Adult",            # Ages 13-18 (YA)
+    "New Adult",              # Ages 18-25, transitional themes
+    "Children's",             # General children's books
+    "Picture Book",           # Illustrated for young children
+
+    # Special Categories
+    "Anthology",              # Short story collections
+    "Novella",                # Shorter than novel length
+    "Graphic Novel",          # Comic book format
+    "Poetry",                 # Verse collections
+    "Classic",                # Established literary canon
+
+    "Unknown"                 # Classification failed
+]
+
 # Mood/Tone of the book
 MoodType = Literal[
     "Inspiring",      # Uplifting, motivational
@@ -53,23 +192,31 @@ MoodType = Literal[
     "Romantic",       # Love-focused, passionate
     "Suspenseful",    # Thrilling, tension-filled
     "Humorous",       # Funny, comedic, lighthearted
-    "Educational",    # Informative, instructional
-    "Philosophical",  # Thought-provoking, reflective
-    "Melancholic",    # Sad, bittersweet, emotional
-    "Adventurous",    # Action-packed, exciting
-    "Mysterious",     # Enigmatic, intriguing
-    "Unknown"         # Classification failed or insufficient data
+    "Hopeful",        # Optimistic outlook
+    "Bittersweet",    # Mix of happy and sad
+    "Cozy",           # Warm, comforting
+    "Intense",        # High emotional stakes
+    "Whimsical",      # Playful, fanciful
+    "Melancholic",    # Sad, reflective
+    "Gritty",         # Raw, realistic
+    "Atmospheric",    # Strong sense of place/mood
+    "Thought-Provoking", # Intellectually engaging
+    "Heartwarming",   # Emotionally uplifting
+    "Tense",          # Anxiety-inducing
+    "Nostalgic",      # Longing for the past
+    "Unknown"         # Classification failed
 ]
 
 # Target audience
 AudienceType = Literal[
-    "Children",       # Ages 0-12
-    "Young Adult",    # Ages 13-17
+    "Children",       # Ages 0-8
+    "Middle Grade",   # Ages 8-12
+    "Young Adult",    # Ages 13-18
+    "New Adult",      # Ages 18-25
     "Adult",          # General adult audience
-    "Mature",         # Adult with mature themes
-    "Professional",   # Business/career focused
-    "Academic",       # Scholarly/research
-    "Unknown"         # Classification failed or insufficient data
+    "Mature",         # Adult with mature/explicit themes
+    "All Ages",       # Appropriate for everyone
+    "Unknown"         # Classification failed
 ]
 
 # Pacing/Intensity
@@ -77,12 +224,14 @@ PaceType = Literal[
     "Slow",           # Contemplative, literary
     "Moderate",       # Balanced pacing
     "Fast",           # Quick, page-turner
-    "Unknown"         # Classification failed or insufficient data
+    "Variable",       # Pacing shifts throughout
+    "Unknown"         # Classification failed
 ]
 
 
 class BookClassification(BaseModel):
     """Structured classification output - model must conform to this schema."""
+    genres: List[GenreType] = Field(..., min_length=1, max_length=4, description="1-4 genre/subgenre tags that best describe the book")
     mood: MoodType = Field(..., description="Primary emotional tone of the book")
     secondary_mood: Optional[MoodType] = Field(None, description="Secondary tone if applicable")
     intensity: int = Field(..., ge=1, le=10, description="Emotional intensity from 1 (light) to 10 (heavy)")
@@ -100,20 +249,30 @@ DEFAULT_INPUT = Path("./output/top_100k_books.csv")
 DEFAULT_OUTPUT = Path("./output/top_100k_books_classified.csv")
 DEFAULT_MODEL = Path("./models/qwen2.5-7b-instruct-q4_k_m.gguf")
 
-SYSTEM_PROMPT = """You are a book classifier. Analyze the provided book title and description.
-Classify the book according to the schema provided.
+SYSTEM_PROMPT = """You are an expert book classifier for a reader recommendation system.
+Analyze the provided book and classify it according to the schema.
 
 Guidelines:
-- mood: The PRIMARY emotional tone (pick the most dominant)
-- secondary_mood: Only if there's a clear secondary tone, otherwise null
-- intensity: 1-3 (light/casual), 4-6 (moderate), 7-10 (heavy/intense)
-- audience: Based on content complexity and themes
-- pace: Based on description style and genre conventions
-- themes: 1-5 specific themes (e.g., "redemption", "family", "survival")
-- content_warnings: Only if clearly indicated (violence, abuse, etc.)
+- genres: Pick 1-4 SPECIFIC subgenres that readers would use to find this book.
+  Be specific! "Epic Fantasy" not just "Fantasy". "Cozy Mystery" not just "Mystery".
+  A book can have multiple genres (e.g., "Romantic Fantasy" + "Fairy Tale Retelling").
+- mood: The PRIMARY emotional tone readers will experience
+- secondary_mood: Only if there's a distinctly different secondary tone
+- intensity: 1-3 (light/cozy), 4-6 (moderate), 7-10 (heavy/intense/dark)
+- audience: Based on content complexity, themes, and explicit content
+- pace: How quickly the plot moves
+- themes: 1-5 specific themes (e.g., "found family", "redemption", "political intrigue")
+- content_warnings: Only for explicit violence, abuse, sexual content, etc.
+
+Genre Selection Tips:
+- Fantasy: Distinguish between Epic, Urban, Dark, Grimdark, Cozy, Romantic, etc.
+- Sci-Fi: Space Opera vs Hard SF vs Cyberpunk vs Dystopian, etc.
+- Mystery: Cozy Mystery vs Noir vs Police Procedural vs Psychological Thriller
+- Romance: Contemporary vs Historical vs Paranormal vs Dark Romance, etc.
+- If non-fiction, use specific categories like Memoir, Popular Science, True Crime
 
 Handle English, Spanish, Portuguese, French, and German equally well.
-Be objective and consistent. When uncertain, choose the most likely category."""
+Be precise and consistent. Match what readers would search for."""
 
 
 # =============================================================================
@@ -144,6 +303,7 @@ class BookClassifier:
         print("Model loaded successfully")
 
         self.taxonomy = {
+            "genres": [g for g in get_args(GenreType) if g != "Unknown"],
             "moods": [m for m in get_args(MoodType) if m != "Unknown"],
             "audiences": [a for a in get_args(AudienceType) if a != "Unknown"],
             "paces": [p for p in get_args(PaceType) if p != "Unknown"],
@@ -190,6 +350,17 @@ class BookClassifier:
                     time.sleep(self.RETRY_DELAY * (attempt + 1))
         raise last_error
 
+    def _normalize_genres(self, genres: list) -> list:
+        """Normalize a list of genre values."""
+        if not genres:
+            return ["Unknown"]
+        normalized = []
+        for g in genres[:4]:
+            norm = self._normalize_value(g, self.taxonomy['genres'])
+            if norm != "Unknown" and norm not in normalized:
+                normalized.append(norm)
+        return normalized if normalized else ["Unknown"]
+
     def classify(self, title: str, description: str, subjects: str = "") -> dict:
         """
         Classify a single book.
@@ -197,6 +368,7 @@ class BookClassifier:
         """
         if not description and not subjects:
             return {
+                "genres": ["Unknown"],
                 "mood": "Unknown",
                 "secondary_mood": None,
                 "intensity": None,
@@ -209,10 +381,18 @@ class BookClassifier:
 
         formatted_system_prompt = SYSTEM_PROMPT + f"""
 
-ALLOWED VALUES (you MUST use these exact values):
-- mood: {', '.join(self.taxonomy['moods'])}
-- audience: {', '.join(self.taxonomy['audiences'])}
-- pace: {', '.join(self.taxonomy['paces'])}
+ALLOWED GENRE VALUES (pick 1-4 that best fit):
+{', '.join(self.taxonomy['genres'][:40])}
+... and more specific subgenres available.
+
+ALLOWED MOOD VALUES:
+{', '.join(self.taxonomy['moods'])}
+
+ALLOWED AUDIENCE VALUES:
+{', '.join(self.taxonomy['audiences'])}
+
+ALLOWED PACE VALUES:
+{', '.join(self.taxonomy['paces'])}
 
 Respond ONLY with valid JSON matching the schema. No markdown, no explanation."""
 
@@ -222,7 +402,7 @@ Respond ONLY with valid JSON matching the schema. No markdown, no explanation.""
         if desc and desc.strip():
             context_parts.append(f"Description: {desc}")
         if subjects and subjects.strip():
-            context_parts.append(f"Genres/Subjects: {subjects}")
+            context_parts.append(f"Existing Tags/Subjects: {subjects}")
 
         user_content = "\n".join(context_parts)
 
@@ -244,6 +424,7 @@ Respond ONLY with valid JSON matching the schema. No markdown, no explanation.""
                 result = validated.model_dump()
             except Exception:
                 result = result_data
+                result['genres'] = self._normalize_genres(result.get('genres', []))
                 result['mood'] = self._normalize_value(result.get('mood'), self.taxonomy['moods'])
                 result['audience'] = self._normalize_value(result.get('audience'), self.taxonomy['audiences'])
                 result['pace'] = self._normalize_value(result.get('pace'), self.taxonomy['paces'])
@@ -337,7 +518,7 @@ def classify_books(input_path: Path, output_path: Path, model_path: Path,
 
     # New columns to add
     new_columns = [
-        'mood', 'secondary_mood', 'intensity', 'audience', 'pace',
+        'genres', 'mood', 'secondary_mood', 'intensity', 'audience', 'pace',
         'themes', 'content_warnings', 'classification_confidence'
     ]
 
@@ -378,6 +559,7 @@ def classify_books(input_path: Path, output_path: Path, model_path: Path,
             book['classification_confidence'] = 'error'
         else:
             # Merge classification into book row
+            book['genres'] = '|'.join(classification.get('genres', []))
             book['mood'] = classification.get('mood', '')
             book['secondary_mood'] = classification.get('secondary_mood', '') or ''
             book['intensity'] = classification.get('intensity', '')
@@ -395,7 +577,8 @@ def classify_books(input_path: Path, output_path: Path, model_path: Path,
             elapsed = (datetime.now() - start_time).total_seconds()
             rate = processed / max(elapsed, 1)
             eta = (len(to_classify) - processed) / max(rate, 0.01)
-            print(f"  [{processed:>6}/{len(to_classify):,}] {title[:40]:<42} -> {book.get('mood', 'ERR'):<12} ({rate:.1f}/s, ETA: {eta/60:.0f}m)")
+            genres_preview = book.get('genres', '')[:30] or 'ERR'
+            print(f"  [{processed:>6}/{len(to_classify):,}] {title[:35]:<37} -> {genres_preview:<32} ({rate:.1f}/s, ETA: {eta/60:.0f}m)")
 
         # Save checkpoint every batch_size
         if processed % batch_size == 0:
@@ -439,9 +622,16 @@ def classify_books(input_path: Path, output_path: Path, model_path: Path,
     print(f"Rate:       {processed / max(elapsed.total_seconds(), 1):.1f} books/second")
 
     # Distribution stats
+    genre_counts = {}
     mood_counts = {}
     audience_counts = {}
     for row in results:
+        genres = row.get('genres', '')
+        if genres:
+            for g in genres.split('|'):
+                g = g.strip()
+                if g:
+                    genre_counts[g] = genre_counts.get(g, 0) + 1
         mood = row.get('mood', '')
         if mood:
             mood_counts[mood] = mood_counts.get(mood, 0) + 1
@@ -449,10 +639,15 @@ def classify_books(input_path: Path, output_path: Path, model_path: Path,
         if audience:
             audience_counts[audience] = audience_counts.get(audience, 0) + 1
 
+    if genre_counts:
+        print("\nTop 20 Genres:")
+        for genre, count in sorted(genre_counts.items(), key=lambda x: -x[1])[:20]:
+            print(f"  {genre:<25} {count:>6,} ({100*count/processed:.1f}%)")
+
     if mood_counts:
         print("\nMood Distribution:")
         for mood, count in sorted(mood_counts.items(), key=lambda x: -x[1])[:10]:
-            print(f"  {mood:<15} {count:>6,} ({100*count/processed:.1f}%)")
+            print(f"  {mood:<20} {count:>6,} ({100*count/processed:.1f}%)")
 
     if audience_counts:
         print("\nAudience Distribution:")
@@ -466,20 +661,28 @@ def classify_books(input_path: Path, output_path: Path, model_path: Path,
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Classify books using local SLM with constrained outputs",
+        description="Classify books using local SLM with reader-friendly genre tags",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Taxonomy:
-  Mood:     Inspiring, Dark, Romantic, Suspenseful, Humorous, Educational,
-            Philosophical, Melancholic, Adventurous, Mysterious, Unknown
-  Audience: Children, Young Adult, Adult, Mature, Professional, Academic, Unknown
-  Pace:     Slow, Moderate, Fast, Unknown
-  Intensity: 1 (light) to 10 (heavy)
+Genre Taxonomy (100+ subgenres, multi-select 1-4 per book):
+  Fantasy:   Epic Fantasy, Grimdark, Urban Fantasy, Cozy Fantasy, Romantasy,
+             Dark Fantasy, Progression Fantasy, LitRPG, Portal Fantasy, etc.
+  Sci-Fi:    Space Opera, Hard SF, Cyberpunk, Dystopian, Military SF,
+             Post-Apocalyptic, Time Travel, First Contact, etc.
+  Mystery:   Cozy Mystery, Noir, Police Procedural, Psychological Thriller,
+             Legal Thriller, Domestic Thriller, Spy Thriller, etc.
+  Horror:    Gothic Horror, Cosmic Horror, Psychological Horror, Folk Horror,
+             Supernatural Horror, Southern Gothic, etc.
+  Romance:   Contemporary, Historical, Paranormal, Dark Romance, Romantic Comedy,
+             MM Romance, FF Romance, Steamy Romance, etc.
+  Literary:  Literary Fiction, Magical Realism, Family Saga, Coming of Age, etc.
+  Non-Fic:   Memoir, Biography, Self-Help, Popular Science, True Crime, etc.
 
-Notes:
-  - "Unknown" is returned when classification fails or data is insufficient
-  - The classifier injects allowed values into prompts for better SLM compliance
-  - Retry logic (3 attempts) handles transient failures
+Other Classifications:
+  Mood:      Inspiring, Dark, Romantic, Cozy, Intense, Gritty, Atmospheric, etc.
+  Audience:  Children, Middle Grade, Young Adult, New Adult, Adult, Mature
+  Pace:      Slow, Moderate, Fast, Variable
+  Intensity: 1 (light) to 10 (heavy)
 
 Examples:
   python classify_books.py                              # Classify all
