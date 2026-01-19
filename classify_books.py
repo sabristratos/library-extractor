@@ -21,11 +21,12 @@ Author: Data Engineering Team
 import argparse
 import csv
 import json
+import re
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, get_args
 
 try:
     from pydantic import BaseModel, Field
@@ -56,7 +57,8 @@ MoodType = Literal[
     "Philosophical",  # Thought-provoking, reflective
     "Melancholic",    # Sad, bittersweet, emotional
     "Adventurous",    # Action-packed, exciting
-    "Mysterious"      # Enigmatic, intriguing
+    "Mysterious",     # Enigmatic, intriguing
+    "Unknown"         # Classification failed or insufficient data
 ]
 
 # Target audience
@@ -66,14 +68,16 @@ AudienceType = Literal[
     "Adult",          # General adult audience
     "Mature",         # Adult with mature themes
     "Professional",   # Business/career focused
-    "Academic"        # Scholarly/research
+    "Academic",       # Scholarly/research
+    "Unknown"         # Classification failed or insufficient data
 ]
 
 # Pacing/Intensity
 PaceType = Literal[
     "Slow",           # Contemplative, literary
     "Moderate",       # Balanced pacing
-    "Fast"            # Quick, page-turner
+    "Fast",           # Quick, page-turner
+    "Unknown"         # Classification failed or insufficient data
 ]
 
 
@@ -117,7 +121,19 @@ Be objective and consistent. When uncertain, choose the most likely category."""
 # =============================================================================
 
 class BookClassifier:
-    def __init__(self, model_path: Path, n_gpu_layers: int = -1, n_ctx: int = 4096):
+    """
+    Hardened SLM classifier with:
+    - Explicit constraint injection into prompts
+    - Robust JSON extraction (handles markdown blocks)
+    - Retry logic with backoff
+    - Pydantic validation
+    - Increased context window
+    """
+
+    MAX_RETRIES = 3
+    RETRY_DELAY = 0.5
+
+    def __init__(self, model_path: Path, n_gpu_layers: int = -1, n_ctx: int = 8192):
         print(f"Loading model: {model_path}")
         self.llm = Llama(
             model_path=str(model_path),
@@ -127,53 +143,120 @@ class BookClassifier:
         )
         print("Model loaded successfully")
 
+        self.taxonomy = {
+            "moods": [m for m in get_args(MoodType) if m != "Unknown"],
+            "audiences": [a for a in get_args(AudienceType) if a != "Unknown"],
+            "paces": [p for p in get_args(PaceType) if p != "Unknown"],
+        }
+
+    def _clean_json_output(self, content: str) -> str:
+        """Strip markdown code blocks if present."""
+        if "```" in content:
+            match = re.search(r'```(?:json)?\s*(.*?)```', content, re.DOTALL)
+            if match:
+                return match.group(1).strip()
+        return content.strip()
+
+    def _normalize_value(self, value: str, allowed: list) -> str:
+        """Fuzzy match value to allowed options (handles casing issues)."""
+        if not value:
+            return "Unknown"
+        value_lower = value.lower().replace("_", " ").replace("-", " ")
+        for option in allowed:
+            if option.lower() == value_lower:
+                return option
+        for option in allowed:
+            if option.lower().replace(" ", "") == value_lower.replace(" ", ""):
+                return option
+        return "Unknown"
+
+    def _generate_with_retry(self, messages: list, schema: dict) -> dict:
+        """Generate with retry logic."""
+        last_error = None
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                return self.llm.create_chat_completion(
+                    messages=messages,
+                    response_format={
+                        "type": "json_object",
+                        "schema": schema,
+                    },
+                    temperature=0.1,
+                    max_tokens=500
+                )
+            except Exception as e:
+                last_error = e
+                if attempt < self.MAX_RETRIES - 1:
+                    time.sleep(self.RETRY_DELAY * (attempt + 1))
+        raise last_error
+
     def classify(self, title: str, description: str, subjects: str = "") -> dict:
         """
         Classify a single book.
         Returns dict with classification or {"error": "..."} on failure.
         """
-        # Build context from available data
+        if not description and not subjects:
+            return {
+                "mood": "Unknown",
+                "secondary_mood": None,
+                "intensity": None,
+                "audience": "Unknown",
+                "pace": "Unknown",
+                "themes": [],
+                "content_warnings": [],
+                "classification_confidence": "none"
+            }
+
+        formatted_system_prompt = SYSTEM_PROMPT + f"""
+
+ALLOWED VALUES (you MUST use these exact values):
+- mood: {', '.join(self.taxonomy['moods'])}
+- audience: {', '.join(self.taxonomy['audiences'])}
+- pace: {', '.join(self.taxonomy['paces'])}
+
+Respond ONLY with valid JSON matching the schema. No markdown, no explanation."""
+
+        desc = description[:6000] if len(description) > 6000 else description
+
         context_parts = [f"Title: {title}"]
-        if description and description.strip():
-            # Truncate very long descriptions
-            desc = description[:1500] if len(description) > 1500 else description
+        if desc and desc.strip():
             context_parts.append(f"Description: {desc}")
         if subjects and subjects.strip():
             context_parts.append(f"Genres/Subjects: {subjects}")
 
         user_content = "\n".join(context_parts)
 
-        # If no description and no subjects, we can't classify well
-        if not description and not subjects:
-            return {
-                "mood": "Educational",  # Safe default
-                "secondary_mood": None,
-                "intensity": 5,
-                "audience": "Adult",
-                "pace": "Moderate",
-                "themes": [],
-                "content_warnings": [],
-                "classification_confidence": "low"
-            }
-
         try:
-            output = self.llm.create_chat_completion(
+            output = self._generate_with_retry(
                 messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "system", "content": formatted_system_prompt},
                     {"role": "user", "content": user_content}
                 ],
-                response_format={
-                    "type": "json_object",
-                    "schema": BookClassification.model_json_schema(),
-                },
-                temperature=0.1,  # Low temperature for consistency
-                max_tokens=500
+                schema=BookClassification.model_json_schema()
             )
 
-            result = json.loads(output['choices'][0]['message']['content'])
+            raw_content = output['choices'][0]['message']['content']
+            clean_content = self._clean_json_output(raw_content)
+            result_data = json.loads(clean_content)
+
+            try:
+                validated = BookClassification(**result_data)
+                result = validated.model_dump()
+            except Exception:
+                result = result_data
+                result['mood'] = self._normalize_value(result.get('mood'), self.taxonomy['moods'])
+                result['audience'] = self._normalize_value(result.get('audience'), self.taxonomy['audiences'])
+                result['pace'] = self._normalize_value(result.get('pace'), self.taxonomy['paces'])
+                if result.get('secondary_mood'):
+                    result['secondary_mood'] = self._normalize_value(result['secondary_mood'], self.taxonomy['moods'])
+                    if result['secondary_mood'] == "Unknown":
+                        result['secondary_mood'] = None
+
             result['classification_confidence'] = "high" if description else "medium"
             return result
 
+        except json.JSONDecodeError as e:
+            return {"error": f"JSON parse error: {e}"}
         except Exception as e:
             return {"error": str(e)}
 
@@ -388,10 +471,15 @@ def main():
         epilog="""
 Taxonomy:
   Mood:     Inspiring, Dark, Romantic, Suspenseful, Humorous, Educational,
-            Philosophical, Melancholic, Adventurous, Mysterious
-  Audience: Children, Young Adult, Adult, Mature, Professional, Academic
-  Pace:     Slow, Moderate, Fast
+            Philosophical, Melancholic, Adventurous, Mysterious, Unknown
+  Audience: Children, Young Adult, Adult, Mature, Professional, Academic, Unknown
+  Pace:     Slow, Moderate, Fast, Unknown
   Intensity: 1 (light) to 10 (heavy)
+
+Notes:
+  - "Unknown" is returned when classification fails or data is insufficient
+  - The classifier injects allowed values into prompts for better SLM compliance
+  - Retry logic (3 attempts) handles transient failures
 
 Examples:
   python classify_books.py                              # Classify all
